@@ -1,0 +1,189 @@
+{
+  "stats": {
+    "baselineDownloads": 12480392,
+    "baselineUsers": 2184507,
+    "realDownloads": 9,
+    "realBytes": 40236780,
+    "speedSamples": [
+      154494,
+      87627,
+      146685,
+      83960,
+      137860,
+      1377938,
+      1096309,
+      509301,
+      1389325
+    ]
+  },
+  "recent": [
+    {
+      "id": "dl_1793509167397_2i92w",
+      "title": "Ticketan Do Lay layi (Official Video) Kanwar Grewal",
+      "thumbnail": "https://i.ytimg.com/vi_webp/7eYRSyM4Sw0/maxresdefault.webp",
+      "platform": "YouTube",
+      "quality": "360p",
+      "format": "mp4",
+      "sizeBytes": 10044818,
+      "status": "completed",
+      "createdAt": 1793509167397,
+      "sample": false
+    },
+    {
+      "id": "dl_1793509077172_wbxr1",
+      "title": "Ticketan Do Lay layi (Official Video) Kanwar Grewal",
+      "thumbnail": "https://i.ytimg.com/vi_webp/7eYRSyM4Sw0/maxresdefault.webp",
+      "platform": "YouTube",
+      "quality": "192 kbps",
+      "format": "mp3",
+      "sizeBytes": 6314829,
+      "status": "completed",
+      "createdAt": 1793509077172,
+      "sample": false
+    },
+    {
+      "id": "dl_1793509058427_oa59v",
+      "title": "Ticketan Do Lay layi (Official Video) Kanwar Grewal",
+      "thumbnail": "https://i.ytimg.com/vi_webp/7eYRSyM4Sw0/maxresdefault.webp",
+      "platform": "YouTube",
+      "quality": "240p",
+      "format": "mp4",
+      "sizeBytes": 7202752,
+      "status": "completed",
+      "createdAt": 1793509058427,
+      "sample": false
+    },
+    {
+      "id": "dl_1793509015717_5pp86",
+      "title": "Ticketan Do Lay layi (Official Video) Kanwar Grewal",
+      "thumbnail": "https://i.ytimg.com/vi_webp/7eYRSyM4Sw0/maxresdefault.webp",
+      "platform": "YouTube",
+      "quality": "480p",
+      "format": "mp4",
+      "sizeBytes": 14410479,
+      "status": "completed",
+      "createdAt": 1793509015717,
+      "sample": false
+    },
+    {
+      "id": "dl_1793508761895_3kvuo",
+      "title": "Me at the zoo",
+      "thumbnail": "https://i.ytimg.com/vi/jNQXAC9IVRw/hqdefault.jpg?sqp=-oaymwEmCOADEOgC8quKqQMa8AEB-AG-AoAC8AGKAgwIABABGFUgWShlMA8=&rs=AOn4CLA9eLBatYv9WbkD4BbZ2Im-biSPTw",
+      "platform": "YouTube",
+      "quality": "240p",
+      "format": "mp4",
+      "sizeBytes": 533932,
+      "status": "completed",
+      "createdAt": 1793508761895,
+      "sample": false
+    },
+    {
+      "id": "dl_1793508690504_i6zsb",
+      "title": "Me at the zoo",
+      "thumbnail": "",
+      "platform": "YouTube",
+      "quality": "320 kbps",
+      "format": "mp3",
+      "sizeBytes": 331053,
+      "status": "completed",
+      "createdAt": 1793508690504,
+      "sample": false
+    },
+    {
+      "id": "dl_1793508681705_1y341",
+      "title": "Me at the zoo",
+      "thumbnail": "",
+      "platform": "YouTube",
+      "quality": "240p",
+      "format": "mp4",
+      "sizeBytes": 533932,
+      "status": "completed",
+      "createdAt": 1793508681705,
+      "sample": false
+    },
+    {
+      "id": "dl_1793506142475_4kzlp",
+      "title": "Me at the zoo",
+      "thumbnail": "",
+      "platform": "YouTube",
+      "quality": "320 kbps",
+      "format": "mp3",
+      "sizeBytes": 331053,
+      "status": "completed",
+      "createdAt": 1793506142475,
+      "sample": false
+    },
+    {
+      "id": "dl_1793506131907_2tkr2",
+      "title": "Me at the zoo",
+      "thumbnail": "",
+      "platform": "YouTube",
+      "quality": "240p",
+      "format": "mp4",
+      "sizeBytes": 533932,
+      "status": "completed",
+      "createdAt": 1793506131907,
+      "sample": false
+    },
+    {
+      "id": "seed_1",
+      "title": "Big Buck Bunny — Official 4K Short Film",
+      "thumbnail": "https://i.ytimg.com/vi/aqz-KE-bpKQ/hqdefault.jpg",
+      "platform": "YouTube",
+      "quality": "4K",
+      "format": "mp4",
+      "sizeBytes": 722647490,
+      "status": "completed",
+      "createdAt": 1793505872641,
+      "sample": true
+    },
+    {
+      "id": "seed_2",
+      "title": "Studio Tour — Designing Products at Scale",
+      "thumbnail": "https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=640&q=80",
+      "platform": "Vimeo",
+      "quality": "2K",
+      "format": "mp4",
+      "sizeBytes": 318767104,
+      "status": "completed",
+      "createdAt": 1793505392641,
+      "sample": true
+    },
+    {
+      "id": "seed_3",
+      "title": "Golden Hour — A Cinematic Reel",
+      "thumbnail": "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?w=640&q=80",
+      "platform": "Instagram",
+      "quality": "1080p",
+      "format": "mp4",
+      "sizeBytes": 48234496,
+      "status": "completed",
+      "createdAt": 1793504552641,
+      "sample": true
+    },
+    {
+      "id": "seed_4",
+      "title": "Lo-fi Sessions — Deep Focus Mix",
+      "thumbnail": "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=640&q=80",
+      "platform": "YouTube",
+      "quality": "320 kbps",
+      "format": "mp3",
+      "sizeBytes": 10485760,
+      "status": "completed",
+      "createdAt": 1793503652641,
+      "sample": true
+    },
+    {
+      "id": "seed_5",
+      "title": "Product Teardown — Next-gen Hardware",
+      "thumbnail": "https://images.unsplash.com/photo-1518770660439-4636190af475?w=640&q=80",
+      "platform": "X",
+      "quality": "720p",
+      "format": "mp4",
+      "sizeBytes": 15728640,
+      "status": "completed",
+      "createdAt": 1793502632641,
+      "sample": true
+    }
+  ]
+}
