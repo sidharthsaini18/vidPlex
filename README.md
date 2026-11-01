@@ -1059,6 +1059,7 @@ interface Settings {
 | `YTDLP_PATH` | empty | Direct path to a `yt-dlp` binary (overrides Python module) |
 | `YTDLP_COOKIES` | empty | Path to a `cookies.txt` passed as `--cookies` (needed when a site blocks cloud IPs) |
 | `YTDLP_PROXY` | empty | Proxy URL passed as `--proxy` (residential proxy for IP-blocked sites) |
+| `YTDLP_EXTRACTOR_ARGS` | `youtube:player_client=default,android` | Passed as `--extractor-args`; the android fallback avoids "This video is not available" |
 | `FFMPEG_PATH` | `node_modules/ffmpeg-static/ffmpeg.exe` | FFmpeg binary |
 | `MAX_CONCURRENT_DOWNLOADS` | `3` | Concurrent job limit |
 

@@ -10,6 +10,10 @@ export const PYTHON = process.env.PYTHON_PATH || process.env.PYTHON || "python";
 export const YTDLP_BIN = process.env.YTDLP_PATH || "";
 export const YTDLP_COOKIES = process.env.YTDLP_COOKIES || "";
 export const YTDLP_PROXY = process.env.YTDLP_PROXY || "";
+// The "default" (web) client fails on some videos with "This video is not
+// available"; the android client still returns playable formats for those.
+export const YTDLP_EXTRACTOR_ARGS =
+  process.env.YTDLP_EXTRACTOR_ARGS || "youtube:player_client=default,android";
 export const FFMPEG_PATH =
   process.env.FFMPEG_PATH ||
   path.resolve(here, "..", "..", "node_modules", "ffmpeg-static", "ffmpeg.exe");
@@ -24,6 +28,7 @@ export function ytdlpBaseArgs() {
   const auth = [];
   if (YTDLP_COOKIES && fs.existsSync(YTDLP_COOKIES)) auth.push("--cookies", YTDLP_COOKIES);
   if (YTDLP_PROXY) auth.push("--proxy", YTDLP_PROXY);
+  if (YTDLP_EXTRACTOR_ARGS) auth.push("--extractor-args", YTDLP_EXTRACTOR_ARGS);
   return [
     ...baseArgs,
     ...auth,
