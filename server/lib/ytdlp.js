@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { platformFromExtractor } from "./security.js";
@@ -7,6 +8,8 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 
 export const PYTHON = process.env.PYTHON_PATH || process.env.PYTHON || "python";
 export const YTDLP_BIN = process.env.YTDLP_PATH || "";
+export const YTDLP_COOKIES = process.env.YTDLP_COOKIES || "";
+export const YTDLP_PROXY = process.env.YTDLP_PROXY || "";
 export const FFMPEG_PATH =
   process.env.FFMPEG_PATH ||
   path.resolve(here, "..", "..", "node_modules", "ffmpeg-static", "ffmpeg.exe");
@@ -18,8 +21,12 @@ export function ytdlpCommand() {
 
 export function ytdlpBaseArgs() {
   const { baseArgs } = ytdlpCommand();
+  const auth = [];
+  if (YTDLP_COOKIES && fs.existsSync(YTDLP_COOKIES)) auth.push("--cookies", YTDLP_COOKIES);
+  if (YTDLP_PROXY) auth.push("--proxy", YTDLP_PROXY);
   return [
     ...baseArgs,
+    ...auth,
     "--no-warnings",
     "--no-playlist",
     "--no-check-certificates",
