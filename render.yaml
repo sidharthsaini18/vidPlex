@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: vidplex-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    # free spins down after 15 min idle and only has 512 MB RAM, which is tight
+    # for ffmpeg merges; "starter" keeps the API warm.
+    plan: starter
+    healthCheckPath: /api/health
+    envVars:
+      - key: PUBLIC_ORIGIN
+        value: https://YOUR-FRONTEND-DOMAIN
+      - key: MAX_CONCURRENT_DOWNLOADS
+        value: "2"
