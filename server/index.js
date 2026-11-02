@@ -5,7 +5,7 @@ import fsp from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRateLimiter, assertPublicHost, validateMediaUrl } from "./lib/security.js";
-import { fetchVideoInfo, fetchDirectInfo, runYtdlp, ytdlpBaseArgs, FFMPEG_PATH } from "./lib/ytdlp.js";
+import { fetchVideoInfo, fetchDirectInfo, runYtdlp, ytdlpBaseArgs, FFMPEG_PATH, YTDLP_COOKIES, YTDLP_PROXY } from "./lib/ytdlp.js";
 import {
   cancelJob,
   cleanupStaleJobs,
@@ -58,7 +58,14 @@ function pickErrorMessage(error) {
 }
 
 app.get("/api/health", async (_req, res) => {
-  const checks = { server: true, ffmpeg: fs.existsSync(FFMPEG_PATH), ytdlp: false, version: null };
+  const checks = {
+    server: true,
+    ffmpeg: fs.existsSync(FFMPEG_PATH),
+    ytdlp: false,
+    version: null,
+    cookies: YTDLP_COOKIES ? fs.existsSync(YTDLP_COOKIES) : false,
+    proxy: Boolean(YTDLP_PROXY),
+  };
   try {
     const { stdout } = await runYtdlp([...ytdlpBaseArgs(), "--version"], { timeout: 15_000 });
     checks.ytdlp = true;
