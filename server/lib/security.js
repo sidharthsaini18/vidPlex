@@ -15,12 +15,12 @@ const PRIVATE_V4 = [
  * Validate a user supplied media URL.
  * Blocks non-HTTP protocols, credentials, local/private hosts and odd ports.
  */
-export function validateMediaUrl(raw) {
+export function validateMediaUrl(raw, { maxLength = 2048 } = {}) {
   if (typeof raw !== "string" || raw.trim().length === 0) {
     return { ok: false, message: "Please paste a video URL." };
   }
   const value = raw.trim();
-  if (value.length > 2048) {
+  if (value.length > maxLength) {
     return { ok: false, message: "That URL is too long." };
   }
 

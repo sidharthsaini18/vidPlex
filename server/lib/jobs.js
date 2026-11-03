@@ -7,7 +7,7 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { FFMPEG_PATH, ytdlpBaseArgs, ytdlpCommand } from "./ytdlp.js";
-import { sanitizeFilename } from "./security.js";
+import { sanitizeFilename, validateMediaUrl, assertPublicHost } from "./security.js";
 import { recordCompletedDownload } from "./store.js";
 
 const JOB_ROOT = path.join(os.tmpdir(), "vidplex-jobs");
@@ -73,7 +73,7 @@ function videoFormatSelector(height) {
   ].join("/");
 }
 
-export async function startJob({ url, title, thumbnail, platform, type, height, quality, format, direct, duration }) {
+export async function startJob({ url, title, thumbnail, platform, type, height, quality, format, direct, duration, streams }) {
   if (getJobCount() >= MAX_CONCURRENT) {
     throw new JobError(
       "All download slots are busy right now. Please try again in a few seconds.",
@@ -81,6 +81,7 @@ export async function startJob({ url, title, thumbnail, platform, type, height, 
     );
   }
 
+  const normalizedStreams = await normalizeStreams(streams);
   const id = crypto.randomUUID();
   const dir = path.join(JOB_ROOT, id);
   await fs.mkdir(dir, { recursive: true });
@@ -112,12 +113,18 @@ export async function startJob({ url, title, thumbnail, platform, type, height, 
     filename: null,
     sizeBytes: null,
     process: null,
+    abortController: null,
+    streams: normalizedStreams,
     stderr: "",
     lastLineAt: Date.now(),
   };
   jobs.set(id, job);
 
-  if (direct && normalizedType === "video") {
+  if (normalizedStreams && (normalizedStreams.video || normalizedStreams.audio)) {
+    runStreamJob(job).catch((error) => {
+      if (job.status !== "cancelled") failJob(job, error.message);
+    });
+  } else if (direct && normalizedType === "video") {
     runDirectJob(job).catch((error) => failJob(job, error.message));
   } else {
     runYtdlpJob(job).catch((error) => failJob(job, error.message));
@@ -286,6 +293,271 @@ function deriveError(stderr = "") {
   return lines.at(-1)?.replace(/^ERROR:\s*/i, "").slice(0, 300) || "";
 }
 
+async function normalizeStreams(streams) {
+  if (!streams || typeof streams !== "object") return null;
+
+  const normalized = {};
+  for (const key of ["video", "audio"]) {
+    const value = streams[key];
+    if (!value) continue;
+
+    // Invidious proxied URLs are long (pot/sig tokens), so allow more than the
+    // normal 2 KB user-supplied URL limit.
+    const validation = validateMediaUrl(value, { maxLength: 8_192 });
+    if (!validation.ok) {
+      throw new JobError(`The backup ${key} stream URL is invalid.`, 400);
+    }
+    await assertPublicHost(new URL(validation.url).hostname);
+    normalized[key] = validation.url;
+  }
+
+  return Object.keys(normalized).length ? normalized : null;
+}
+
+async function runStreamJob(job) {
+  const videoUrl = job.streams?.video || null;
+  const audioUrl = job.streams?.audio || null;
+
+  if (job.type === "video") {
+    if (!videoUrl) throw new Error("The backup source did not provide a video stream.");
+
+    job.status = "downloading";
+    job.phase = "Downloading backup video";
+    const videoPath = path.join(job.dir, "video.mp4");
+    await downloadStream(job, videoUrl, videoPath, 0, audioUrl ? 70 : 92);
+
+    let output = videoPath;
+    if (audioUrl) {
+      const audioPath = path.join(job.dir, "audio.m4a");
+      await downloadStream(job, audioUrl, audioPath, 70, 92);
+
+      job.status = "processing";
+      job.phase = "Merging video and audio";
+      job.progress = Math.max(job.progress, 92);
+      output = path.join(job.dir, "media.mp4");
+      await mergeVideoAndAudio(job, videoPath, audioPath, output);
+      await fs.unlink(videoPath).catch(() => {});
+      await fs.unlink(audioPath).catch(() => {});
+    } else {
+      const remuxed = path.join(job.dir, "media.mp4");
+      job.phase = "Packaging MP4";
+      await runFfmpeg(job, ["-i", videoPath, "-c", "copy", "-movflags", "+faststart", remuxed]);
+      output = remuxed;
+      await fs.unlink(videoPath).catch(() => {});
+    }
+
+    await finalizeStreamJob(job, output);
+    return;
+  }
+
+  if (!audioUrl) throw new Error("The backup source did not provide an audio stream.");
+
+  job.status = "downloading";
+  job.phase = "Downloading backup audio";
+  const sourcePath = path.join(job.dir, "audio.source");
+  await downloadStream(job, audioUrl, sourcePath, 0, 70);
+
+  job.status = "processing";
+  job.phase = job.format === "mp3" ? "Converting to MP3" : "Packaging M4A";
+  job.progress = Math.max(job.progress, 82);
+
+  const output = path.join(job.dir, `media.${job.format === "m4a" ? "m4a" : "mp3"}`);
+  if (job.format === "mp3") {
+    const bitrate = Math.min(320, Math.max(96, Number.parseInt(job.quality, 10) || 320));
+    await runFfmpeg(job, [
+      "-i",
+      sourcePath,
+      "-vn",
+      "-c:a",
+      "libmp3lame",
+      "-b:a",
+      `${bitrate}k`,
+      output,
+    ]);
+  } else {
+    await runFfmpeg(job, [
+      "-i",
+      sourcePath,
+      "-vn",
+      "-c:a",
+      "aac",
+      "-b:a",
+      "192k",
+      "-movflags",
+      "+faststart",
+      output,
+    ]);
+  }
+
+  await fs.unlink(sourcePath).catch(() => {});
+  await finalizeStreamJob(job, output);
+}
+
+async function downloadStream(job, url, target, fromProgress, toProgress) {
+  const controller = new AbortController();
+  job.abortController = controller;
+
+  const response = await fetch(url, {
+    redirect: "follow",
+    headers: {
+      "user-agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36",
+    },
+    signal: controller.signal,
+  });
+
+  if (!response.ok || !response.body) {
+    throw new Error(`The backup stream returned ${response.status}.`);
+  }
+
+  const contentType = response.headers.get("content-type") || "";
+  if (/text\/html/i.test(contentType)) {
+    throw new Error("The backup stream returned a web page instead of a media file.");
+  }
+
+  const total = Number(response.headers.get("content-length")) || 0;
+  let received = 0;
+  const started = Date.now();
+  const span = Math.max(1, toProgress - fromProgress);
+
+  const nodeStream = Readable.fromWeb(response.body);
+  nodeStream.on("data", (chunk) => {
+    received += chunk.length;
+    if (total > 0) {
+      job.progress = Math.min(toProgress, fromProgress + (received / total) * span);
+      job.phase = "Downloading backup stream";
+      const seconds = Math.max(0.2, (Date.now() - started) / 1000);
+      const rate = received / seconds;
+      job.speed = formatSpeed(rate);
+      const remaining = total > received ? (total - received) / Math.max(1, rate) : 0;
+      job.eta = formatEta(remaining);
+    } else {
+      job.progress = Math.min(toProgress, job.progress + 0.4);
+    }
+  });
+
+  try {
+    await pipeline(nodeStream, fsSync.createWriteStream(target));
+  } finally {
+    if (job.abortController === controller) job.abortController = null;
+  }
+
+  if (received === 0) {
+    throw new Error("The backup stream was empty.");
+  }
+}
+
+async function mergeVideoAndAudio(job, videoPath, audioPath, output) {
+  try {
+    await runFfmpeg(job, [
+      "-i",
+      videoPath,
+      "-i",
+      audioPath,
+      "-map",
+      "0:v:0",
+      "-map",
+      "1:a:0",
+      "-c",
+      "copy",
+      "-movflags",
+      "+faststart",
+      output,
+    ]);
+  } catch {
+    // Opus/WebM audio cannot always be copied into MP4. Retry with AAC while
+    // keeping the video stream untouched.
+    await runFfmpeg(job, [
+      "-i",
+      videoPath,
+      "-i",
+      audioPath,
+      "-map",
+      "0:v:0",
+      "-map",
+      "1:a:0",
+      "-c:v",
+      "copy",
+      "-c:a",
+      "aac",
+      "-b:a",
+      "192k",
+      "-movflags",
+      "+faststart",
+      output,
+    ]);
+  }
+}
+
+function runFfmpeg(job, args, timeoutMs = 10 * 60 * 1000) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(FFMPEG_PATH, ["-hide_banner", "-loglevel", "error", "-y", ...args], {
+      windowsHide: true,
+      stdio: ["ignore", "ignore", "pipe"],
+    });
+    job.process = child;
+
+    let stderr = "";
+    child.stderr.setEncoding("utf8");
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+      if (stderr.length > 16_000) stderr = stderr.slice(-16_000);
+    });
+
+    const timer = setTimeout(() => {
+      killTree(child);
+      reject(new Error("Media processing timed out."));
+    }, timeoutMs);
+
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      job.process = null;
+      reject(error);
+    });
+
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      job.process = null;
+      if (code === 0) {
+        resolve();
+      } else {
+        const detail = String(stderr)
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter(Boolean)
+          .slice(-2)
+          .join(" ");
+        reject(new Error(detail || "We couldn't process the backup stream."));
+      }
+    });
+  });
+}
+
+async function finalizeStreamJob(job, filePath) {
+  const stat = await fs.stat(filePath);
+  if (!stat.size) throw new Error("The backup stream produced an empty file.");
+
+  job.filePath = filePath;
+  job.filename = `${job.title}.${path.extname(filePath).slice(1)}`;
+  job.sizeBytes = stat.size;
+  job.progress = 100;
+  job.status = "completed";
+  job.phase = "Completed";
+  job.speed = null;
+  job.eta = null;
+  job.completedAt = Date.now();
+  job.bytesPerSecond = job.sizeBytes / Math.max(1, (job.completedAt - job.createdAt) / 1000);
+  recordCompletedDownload({
+    title: job.title,
+    thumbnail: job.thumbnail,
+    platform: job.platform,
+    quality: job.quality,
+    format: job.format,
+    sizeBytes: job.sizeBytes,
+    bytesPerSecond: job.bytesPerSecond,
+  });
+}
+
 async function runDirectJob(job) {
   job.status = "downloading";
   job.phase = "Downloading";
@@ -383,6 +655,14 @@ export async function cancelJob(id) {
   job.phase = "Cancelled";
   job.speed = null;
   job.eta = null;
+  if (job.abortController) {
+    try {
+      job.abortController.abort();
+    } catch {
+      /* ignore */
+    }
+    job.abortController = null;
+  }
   if (job.process) {
     killTree(job.process);
     job.process = null;
@@ -455,6 +735,14 @@ export async function cleanupStaleJobs() {
 
 export async function shutdownJobs() {
   for (const job of jobs.values()) {
+    if (job.abortController) {
+      try {
+        job.abortController.abort();
+      } catch {
+        /* ignore */
+      }
+      job.abortController = null;
+    }
     if (job.process) killTree(job.process);
     await cleanupDir(job.dir);
   }

@@ -9,6 +9,14 @@ export interface VideoFormat {
   codec: string | null;
   filesize: number | null;
   hasAudio: boolean;
+  /** Direct media URL when the metadata came from an Invidious instance. */
+  url?: string | null;
+  /** Video-only URL for adaptive renditions (merged server-side). */
+  streamUrl?: string | null;
+  /** Audio-only URL paired with `streamUrl` when a merge is required. */
+  audioStreamUrl?: string | null;
+  container?: string;
+  requiresMerge?: boolean;
 }
 
 export interface AudioFormat {
@@ -16,6 +24,9 @@ export interface AudioFormat {
   quality: string;
   bitrate: number;
   filesize: number | null;
+  /** Direct audio stream URL when the metadata came from Invidious. */
+  url?: string | null;
+  container?: string;
 }
 
 export interface VideoInfo {
@@ -38,6 +49,14 @@ export interface VideoInfo {
   extractor: string;
   direct?: boolean;
   cached?: boolean;
+  /** Which extractor produced this metadata. */
+  source?: "backend" | "invidious";
+  /** Invidious host that served the payload, when applicable. */
+  sourceInstance?: string;
+  /** True when the primary yt-dlp extractor was blocked and a fallback was used. */
+  fallback?: boolean;
+  /** Epoch ms when the Invidious stream URLs were resolved. */
+  streamsFetchedAt?: number;
 }
 
 export type JobStatus =

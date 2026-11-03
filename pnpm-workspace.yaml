@@ -1,5 +1,7 @@
+# ffmpeg-static downloads its binary in a postinstall script, which pnpm blocks
+# unless the package is explicitly approved here.
 allowBuilds:
-  ffmpeg-static: set this to true or false
+  ffmpeg-static: true
 minimumReleaseAgeExclude:
   - framer-motion@14.9.0
   - lucide-react@1.66.0

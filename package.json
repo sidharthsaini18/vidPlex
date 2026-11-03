@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently -k -n api,web -c magenta,cyan \"npm:server\" \"vite\"",
+    "dev": "concurrently -k -n api,web -c magenta,cyan \"node server/index.js\" \"vite\"",
     "dev:web": "vite",
     "server": "node server/index.js",
     "build": "tsc -b && vite build",

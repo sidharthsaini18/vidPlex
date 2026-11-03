@@ -3,6 +3,12 @@ import toast from "react-hot-toast";
 import { api, ApiError } from "../lib/api";
 import { useStore } from "../lib/store";
 import { isLikelyUrl } from "../lib/format";
+import {
+  extractYouTubeId,
+  fetchInvidiousVideo,
+  InvidiousError,
+  isFallbackEligible,
+} from "../lib/invidious";
 import type { DownloadJob, MediaType, VideoInfo } from "../lib/types";
 
 export type DownloaderStage =
@@ -130,6 +136,33 @@ export function useDownloader() {
     [completeJob, stopPolling]
   );
 
+  const loadInvidiousFallback = useCallback(async (url: string): Promise<VideoInfo | null> => {
+    const videoId = extractYouTubeId(url);
+    if (!videoId) return null;
+
+    const toastId = "invidious-fallback";
+    toast.loading("Source blocked — switching to a backup instance…", { id: toastId });
+
+    try {
+      const result = await fetchInvidiousVideo(videoId, url);
+      let host = "backup proxy";
+      if (result.sourceInstance) {
+        try {
+          host = new URL(result.sourceInstance).hostname;
+        } catch {
+          host = result.sourceInstance;
+        }
+      }
+      toast.success(`Backup source connected via ${host}.`, { id: toastId, duration: 3600 });
+      return result;
+    } catch (error) {
+      const detail =
+        error instanceof InvidiousError ? error.message : "Every backup instance is busy right now.";
+      toast.error(`Backup source unavailable. ${detail}`, { id: toastId, duration: 5000 });
+      return null;
+    }
+  }, []);
+
   const fetchInfo = useCallback(
     async (rawUrl: string) => {
       const url = rawUrl.trim();
@@ -157,18 +190,33 @@ export function useDownloader() {
         toast.success(`Found ${result.platform} video — ready to download.`, { duration: 3200 });
       } catch (err) {
         if (current !== requestId.current) return;
-        const message = err instanceof ApiError ? err.message : "We couldn't read that link.";
+
+        const canFallBack = isFallbackEligible(err, url);
+        const fallback = canFallBack ? await loadInvidiousFallback(url) : null;
+        if (current !== requestId.current) return;
+
+        if (fallback) {
+          setInfo(fallback);
+          setStage("ready");
+          return;
+        }
+
+        const base = err instanceof ApiError ? err.message : "We couldn't read that link.";
+        const message = canFallBack
+          ? `${base} The backup source also failed — please try again in a minute.`
+          : base;
         setError(message);
         setStage("error");
         toast.error(message);
       }
     },
-    [stopPolling]
+    [loadInvidiousFallback, stopPolling]
   );
 
   const start = useCallback(
     async (params: DownloadParams) => {
       if (!info) return;
+
       stopPolling();
       lastParams.current = params;
       setStage("starting");
@@ -177,23 +225,78 @@ export function useDownloader() {
       completedJob.current = null;
 
       try {
+        let activeInfo = info;
+        const usingFallback = info.source === "invidious";
+
+        // Invidious stream signatures expire. Refresh long-lived metadata just
+        // before starting so the backend receives a usable URL.
+        const stale =
+          !info.streamsFetchedAt || Date.now() - info.streamsFetchedAt > 15 * 60 * 1000;
+        if (usingFallback && stale) {
+          toast.loading("Preparing a fresh backup stream…", { id: "invidious-refresh" });
+          try {
+            activeInfo = await fetchInvidiousVideo(info.id, info.url);
+            setInfo(activeInfo);
+          } catch {
+            /* Keep the existing metadata and let the backend try it. */
+          } finally {
+            toast.dismiss("invidious-refresh");
+          }
+        }
+
+        const selectedVideo =
+          usingFallback && params.type === "video"
+            ? activeInfo.formats.find((format) => format.height === params.height) || null
+            : null;
+        const selectedAudio =
+          usingFallback && params.type === "audio"
+            ? activeInfo.audioFormats.find(
+                (format) =>
+                  format.format === params.format &&
+                  (params.format === "m4a" ||
+                    format.bitrate === Number.parseInt(params.quality, 10))
+              ) ||
+              activeInfo.audioFormats.find((format) => format.format === params.format) ||
+              null
+            : null;
+        const streams: { video?: string | null; audio?: string | null } | undefined = usingFallback
+          ? params.type === "video"
+            ? {
+                video: selectedVideo?.streamUrl || null,
+                audio: selectedVideo?.audioStreamUrl || null,
+              }
+            : { audio: selectedAudio?.url || null }
+          : undefined;
+
+        if (usingFallback && !(params.type === "video" ? streams?.video : streams?.audio)) {
+          throw new Error(
+            "The backup source didn't provide a stream for that quality. Pick another option and try again."
+          );
+        }
+
         const started = await api.startDownload({
-          url: info.url,
-          title: info.title,
-          thumbnail: info.thumbnail,
-          platform: info.platform,
+          url: activeInfo.url,
+          title: activeInfo.title,
+          thumbnail: activeInfo.thumbnail,
+          platform: activeInfo.platform,
           type: params.type,
           height: params.type === "video" ? params.height : 0,
           quality: params.quality,
           format: params.format,
-          direct: info.direct,
-          duration: info.duration,
+          direct: activeInfo.direct,
+          duration: activeInfo.duration,
+          streams,
         });
         setJob(started);
         setStage("downloading");
-        poll(started.id, info, params);
+        poll(started.id, activeInfo, params);
       } catch (err) {
-        const message = err instanceof ApiError ? err.message : "We couldn't start that download.";
+        const message =
+          err instanceof ApiError
+            ? err.message
+            : err instanceof Error
+              ? err.message
+              : "We couldn't start that download.";
         setError(message);
         setStage("error");
         toast.error(message);

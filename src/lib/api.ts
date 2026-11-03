@@ -84,6 +84,11 @@ export const api = {
     format: string;
     direct?: boolean;
     duration?: number;
+    /** Direct Invidious stream URLs. The backend downloads/merges these itself. */
+    streams?: {
+      video?: string | null;
+      audio?: string | null;
+    } | null;
   }) =>
     request<DownloadJob>("/api/download", { method: "POST", body: JSON.stringify(payload) }, 30_000),
   job: (id: string) => request<DownloadJob>(`/api/download/${id}`, {}, 20_000),

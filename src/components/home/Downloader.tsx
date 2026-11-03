@@ -34,6 +34,15 @@ import { cn } from "../../lib/format";
 const PLATFORMS = ["YouTube", "Instagram", "Facebook", "TikTok", "X", "Vimeo"];
 const STANDARD_HEIGHTS = [360, 480, 720, 1080, 1440, 2160];
 
+function sourceHost(info: VideoInfo): string {
+  if (!info.sourceInstance) return "backup proxy";
+  try {
+    return new URL(info.sourceInstance).hostname;
+  } catch {
+    return info.sourceInstance;
+  }
+}
+
 function defaultHeightFor(info: VideoInfo, preferred: number) {
   const heights = [...info.heights].filter((h) => h > 0).sort((a, b) => a - b);
   if (!heights.length) return 0;
@@ -541,6 +550,14 @@ function VideoPreview({
             <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/15 bg-emerald-500/[0.07] px-2 py-0.5 text-[10px] font-medium text-emerald-200">
               <Check className="h-3 w-3" /> Link verified
             </span>
+            {info.source === "invidious" && (
+              <span
+                title={`Metadata and streams resolved via ${sourceHost(info)}`}
+                className="inline-flex items-center gap-1 rounded-full border border-amber-400/20 bg-amber-500/[0.08] px-2 py-0.5 text-[10px] font-medium text-amber-200"
+              >
+                <ShieldCheck className="h-3 w-3" /> Backup source
+              </span>
+            )}
             {info.heights.length > 0 && (
               <span className="rounded-full border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 text-[10px] font-medium text-slate-400">
                 {info.heights.length} video quality{info.heights.length > 1 ? "s" : ""}

@@ -6,6 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRateLimiter, assertPublicHost, validateMediaUrl } from "./lib/security.js";
 import { fetchVideoInfo, fetchDirectInfo, runYtdlp, ytdlpBaseArgs, FFMPEG_PATH, YTDLP_COOKIES, YTDLP_PROXY } from "./lib/ytdlp.js";
+import { fetchInvidiousPayload } from "./lib/invidious.js";
 import {
   cancelJob,
   cleanupStaleJobs,
@@ -43,6 +44,7 @@ app.use((req, res, next) => {
 
 const infoLimiter = createRateLimiter({ windowMs: 60_000, max: 30 });
 const downloadLimiter = createRateLimiter({ windowMs: 60_000, max: 12 });
+const invidiousLimiter = createRateLimiter({ windowMs: 60_000, max: 60 });
 
 const infoCache = new Map();
 const INFO_TTL = 10 * 60 * 1000;
@@ -81,6 +83,25 @@ app.get("/api/health", async (_req, res) => {
     activeJobs: getJobCount(),
     timestamp: Date.now(),
   });
+});
+
+app.get("/api/invidious/videos/:id", invidiousLimiter, async (req, res) => {
+  const id = String(req.params.id || "");
+  if (!/^[A-Za-z0-9_-]{11}$/.test(id)) {
+    return fail(res, 400, "invalid_video_id", "That YouTube video ID is not valid.");
+  }
+  try {
+    const payload = await fetchInvidiousPayload(id);
+    res.setHeader("Cache-Control", "public, max-age=300");
+    res.json(payload);
+  } catch (error) {
+    res.status(502).json({
+      error: {
+        code: "invidious_failed",
+        message: pickErrorMessage(error) || "No backup instance is available right now.",
+      },
+    });
+  }
 });
 
 app.get("/api/stats", (_req, res) => {
@@ -159,6 +180,7 @@ app.post("/api/download", downloadLimiter, async (req, res) => {
       format,
       direct: Boolean(body.direct),
       duration: Number(body.duration) || 0,
+      streams: body.streams && typeof body.streams === "object" ? body.streams : null,
     });
     res.status(202).json(job);
   } catch (error) {
@@ -244,6 +266,17 @@ app.use((error, _req, res, _next) => {
 
 const server = app.listen(PORT, () => {
   console.log(`VidPlex API listening on http://localhost:${PORT}`);
+});
+
+server.on("error", (error) => {
+  if (error?.code === "EADDRINUSE") {
+    console.error(
+      `Port ${PORT} is already in use. Stop whatever is holding it (a dev server, or a previous "pnpm start") or run with a different PORT.`
+    );
+    process.exit(1);
+  }
+  console.error("[api] server error:", error);
+  process.exit(1);
 });
 
 initStore().catch(() => {});
